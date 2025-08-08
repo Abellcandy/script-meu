@@ -1,464 +1,422 @@
--- SERVIÇOS
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local VoiceChatService = game:GetService("VoiceChatService")
-local StarterGui = game:GetService("StarterGui")
 
-local LocalPlayer = Players.LocalPlayer
+local CONFIG_DIR = "AFS_Scripts"
+local CONFIG_FILE = CONFIG_DIR.."/settings.json"
+local HttpService = game:GetService("HttpService")
 
--- ANIMAÇÕES ELDER
-local ElderAnims = {
-    Idle = "rbxassetid://845397899",
-    Walk = "rbxassetid://845403856",
-    Run = "rbxassetid://845386501",
-    Fall = "rbxassetid://845396048",
-    Jump = "rbxassetid://845398858",
-    Swim = "rbxassetid://845401742",
+local function safeWriteFile(fname, data)
+    if writefile then
+        if not isfolder(CONFIG_DIR) then makefolder(CONFIG_DIR) end
+        writefile(fname, HttpService:JSONEncode(data))
+    end
+end
+local function safeReadFile(fname)
+    if readfile and isfile(fname) then
+        return HttpService:JSONDecode(readfile(fname))
+    end
+    return nil
+end
+
+local Settings = safeReadFile(CONFIG_FILE) or {
+    AutoFarm = false,
+    FarmMode = "Closest",
+    TargetEnemy = "",
+    BossOnly = false,
+    AttackDelay = 0.1,
+    AllAtOnce = true,
+    AutoOpenStar = false,
+    SelectedWorld = "",
+    SelectedStar = "",
+    StarsPerCycle = 1,
+    UseLuck = false,
+    UseShiny = false,
+    AutoSell = {Common = false, Rare = false, Epic = false, Legendary = false, Mythical = false},
+    AutoMaxOpen = false,
+    AutoSellAfterMax = false,
+    NotifySecret = true,
+    NotifyDivine = true,
+    NotifyShiny = true,
+    WebhookURL = "",
+    AutoCollect = {Yen = true, Fruits = true, Shards = true},
+    AutoClaimRewards = false,
+    AntiAFK = true,
+    TeleportWorld = "",
 }
 
--- VISUAIS
-local accentColor = Color3.fromRGB(0, 255, 255)
-local bgColor = Color3.fromRGB(20, 22, 26)
-local borderColor = Color3.fromRGB(40, 255, 255)
-local textColor = Color3.fromRGB(255, 255, 255)
-local highlightColor = Color3.fromRGB(0, 180, 255)
+local function saveSettings() safeWriteFile(CONFIG_FILE, Settings) end
 
--- UI PRINCIPAL
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FuturisticMenu"
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = game:GetService("CoreGui")
-
-local MenuFrame = Instance.new("Frame")
-MenuFrame.Size = UDim2.new(0, 420, 0, 430)
-MenuFrame.Position = UDim2.new(0.5, -210, 0.5, -215)
-MenuFrame.BackgroundColor3 = bgColor
-MenuFrame.BorderColor3 = borderColor
-MenuFrame.BorderSizePixel = 2
-MenuFrame.BackgroundTransparency = 0.18
-MenuFrame.Visible = true
-MenuFrame.Parent = ScreenGui
-
-local UIStroke = Instance.new("UIStroke", MenuFrame)
-UIStroke.Thickness = 2
-UIStroke.Color = accentColor
-UIStroke.Transparency = 0.3
-
-local UICorner = Instance.new("UICorner", MenuFrame)
-UICorner.CornerRadius = UDim.new(0, 18)
-
--- TopBar (Arrastável)
-local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 44)
-TopBar.BackgroundTransparency = 0.13
-TopBar.BackgroundColor3 = accentColor
-TopBar.Parent = MenuFrame
-TopBar.Active = true -- Necessário para drag
-
-local TopBarCorner = Instance.new("UICorner", TopBar)
-TopBarCorner.CornerRadius = UDim.new(0, 18)
-
-local Title = Instance.new("TextLabel")
-Title.Text = "FUTURISTIC UNIVERSAL MENU"
-Title.Font = Enum.Font.GothamBold
-Title.TextColor3 = textColor
-Title.TextSize = 22
-Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1, 0, 1, 0)
-Title.Parent = TopBar
-
--- Botão de fechar
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 40, 1, 0)
-CloseBtn.Position = UDim2.new(1, -48, 0, 0)
-CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "✕"
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextColor3 = Color3.fromRGB(230, 80, 80)
-CloseBtn.TextSize = 26
-CloseBtn.Parent = TopBar
-
-CloseBtn.MouseButton1Click:Connect(function()
-    MenuFrame.Visible = false
-end)
-
--- INSTRUÇÕES
-local Hint = Instance.new("TextLabel")
-Hint.Size = UDim2.new(1, -24, 0, 22)
-Hint.Position = UDim2.new(0, 12, 0, 46)
-Hint.BackgroundTransparency = 1
-Hint.Text = "Pressione [B] para abrir/fechar o menu. Menu pode ser arrastado."
-Hint.Font = Enum.Font.Gotham
-Hint.TextColor3 = highlightColor
-Hint.TextSize = 16
-Hint.TextXAlignment = Enum.TextXAlignment.Left
-Hint.Parent = MenuFrame
-
--- LAYOUT DE BOTÕES
-local MainButtonFrame = Instance.new("Frame")
-MainButtonFrame.Size = UDim2.new(0.48, -14, 1, -84)
-MainButtonFrame.Position = UDim2.new(0, 12, 0, 76)
-MainButtonFrame.BackgroundTransparency = 1
-MainButtonFrame.Parent = MenuFrame
-
-local PlayerButtonFrame = Instance.new("Frame")
-PlayerButtonFrame.Size = UDim2.new(0.48, -14, 1, -84)
-PlayerButtonFrame.Position = UDim2.new(0.52, 0, 0, 76)
-PlayerButtonFrame.BackgroundTransparency = 1
-PlayerButtonFrame.Parent = MenuFrame
-
---------------------------
--- BOTÕES DAS FUNÇÕES ----
---------------------------
-local function MakeButton(text, parent, y)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 36)
-    btn.Position = UDim2.new(0, 0, 0, y)
-    btn.BackgroundColor3 = bgColor
-    btn.Text = text
-    btn.Font = Enum.Font.Gotham
-    btn.TextColor3 = accentColor
-    btn.TextSize = 18
-    btn.AutoButtonColor = false
-    btn.Parent = parent
-
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.18), {BackgroundColor3 = accentColor, TextColor3 = bgColor}):Play()
+local function notify(msg, dur)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {Title="AFS", Text=msg, Duration=dur or 3})
     end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.18), {BackgroundColor3 = bgColor, TextColor3 = accentColor}):Play()
-    end)
-
-    return btn
 end
 
-local FPSBtn     = MakeButton("FPS Boost: OFF", MainButtonFrame, 0)
-local ESPBtn     = MakeButton("ESP: OFF [E]", MainButtonFrame, 44)
-local NoclipBtn  = MakeButton("NoClip: OFF", MainButtonFrame, 88)
-local SpeedBtn   = MakeButton("Speed: OFF", MainButtonFrame, 132)
-local ResetBtn   = MakeButton("Reset Character", MainButtonFrame, 176)
-local AnimBtn    = MakeButton("Aplicar Animações Elder", MainButtonFrame, 220)
+local function sendWebhook(url, content)
+    if url and url ~= "" and syn and syn.request then
+        syn.request({
+            Url = url,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode(content)
+        })
+    end
+end
 
-------------------------
--- PLAYER LIST & FUNÇÕES
-------------------------
-local PlayerListLabel = Instance.new("TextLabel")
-PlayerListLabel.Text = "Jogadores:"
-PlayerListLabel.Font = Enum.Font.GothamBold
-PlayerListLabel.TextColor3 = highlightColor
-PlayerListLabel.TextSize = 17
-PlayerListLabel.BackgroundTransparency = 1
-PlayerListLabel.Size = UDim2.new(1, 0, 0, 26)
-PlayerListLabel.Position = UDim2.new(0, 0, 0, 0)
-PlayerListLabel.TextXAlignment = Enum.TextXAlignment.Left
-PlayerListLabel.Parent = PlayerButtonFrame
+--// GAME SERVICES //--
 
-local PlayerListBox = Instance.new("ScrollingFrame")
-PlayerListBox.Size = UDim2.new(1, 0, 1, -50)
-PlayerListBox.Position = UDim2.new(0, 0, 0, 30)
-PlayerListBox.CanvasSize = UDim2.new(0, 0, 0, 0)
-PlayerListBox.BackgroundColor3 = Color3.fromRGB(24, 26, 32)
-PlayerListBox.BackgroundTransparency = 0.2
-PlayerListBox.BorderSizePixel = 0
-PlayerListBox.ScrollBarThickness = 6
-PlayerListBox.Parent = PlayerButtonFrame
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
 
-local PlayerListLayout = Instance.new("UIListLayout", PlayerListBox)
-PlayerListLayout.Padding = UDim.new(0, 3)
-PlayerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+--// GUI LIBRARY //--
 
-local TeleportBtn = MakeButton("Teleportar [T]", PlayerButtonFrame, PlayerButtonFrame.AbsoluteSize.Y - 52)
-TeleportBtn.Position = UDim2.new(0, 0, 1, -48)
-TeleportBtn.Size = UDim2.new(0.5, -2, 0, 36)
-TeleportBtn.TextSize = 17
+local UILib = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = UILib.CreateLib("AFS | Universal", "Ocean")
+local TabFarm = Window:NewTab("Auto Farm")
+local TabStars = Window:NewTab("Stars")
+local TabMisc = Window:NewTab("Misc")
+local TabSettings = Window:NewTab("Settings")
+local FarmSection = TabFarm:NewSection("Auto Farm")
+local StarsSection = TabStars:NewSection("Star Opening")
+local MaxOpenSection = TabStars:NewSection("Max Open")
+local MiscSection = TabMisc:NewSection("Rewards & Drops")
+local SettingsSection = TabSettings:NewSection("Configuration")
+local ExtrasSection = TabSettings:NewSection("Extras")
 
-local ESPPlayerBtn = MakeButton("ESP Player", PlayerButtonFrame, PlayerButtonFrame.AbsoluteSize.Y - 52)
-ESPPlayerBtn.Position = UDim2.new(0.5, 2, 1, -48)
-ESPPlayerBtn.Size = UDim2.new(0.5, -2, 0, 36)
-ESPPlayerBtn.TextSize = 17
+--// WORLD/EGG DISCOVERY //--
 
-------------------------
--- LÓGICA DAS FUNÇÕES ---
-------------------------
+local function getWorldsAndStars()
+    local stars = {}
+    local eggs = ReplicatedStorage:FindFirstChild("Eggs") or ReplicatedStorage:FindFirstChild("Stars")
+    if not eggs then return stars end
+    for _, v in ipairs(eggs:GetChildren()) do
+        if v:IsA("Folder") then
+            stars[v.Name] = {}
+            for _, s in ipairs(v:GetChildren()) do
+                if s:IsA("Folder") then
+                    table.insert(stars[v.Name], s.Name)
+                end
+            end
+        end
+    end
+    return stars
+end
 
--- FPS BOOST
-local FPSBoostActive = false
-FPSBtn.MouseButton1Click:Connect(function()
-    FPSBoostActive = not FPSBoostActive
-    if FPSBoostActive then
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        settings().Rendering.EditQualityLevel = Enum.QualityLevel.Level01
-        FPSBtn.Text = "FPS Boost: ON"
-        FPSBtn.TextColor3 = highlightColor
-        StarterGui:SetCore("SendNotification", {Title="FPS Boost", Text="Qualidade gráfica reduzida para máximo FPS!", Duration=2})
-    else
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-        settings().Rendering.EditQualityLevel = Enum.QualityLevel.Automatic
-        FPSBtn.Text = "FPS Boost: OFF"
-        FPSBtn.TextColor3 = accentColor
-        StarterGui:SetCore("SendNotification", {Title="FPS Boost", Text="Qualidade gráfica restaurada.", Duration=2})
+local WorldsStars = getWorldsAndStars()
+local WorldList = {}
+for w in pairs(WorldsStars) do table.insert(WorldList, w) end
+
+local function updateStarsDropdown(world)
+    return WorldsStars[world] or {}
+end
+
+--// ENEMY UTILITY //--
+
+local function getEnemies()
+    local out = {}
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return out end
+    for _, v in ipairs(enemies:GetChildren()) do
+        if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+            table.insert(out, v)
+        end
+    end
+    return out
+end
+
+local function getClosestEnemy(bossOnly)
+    local minDist, closest = math.huge, nil
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    for _, v in ipairs(getEnemies()) do
+        if not bossOnly or v.Name:lower():find("boss") then
+            local dist = (v.HumanoidRootPart.Position - hrp.Position).Magnitude
+            if dist < minDist then minDist, closest = dist, v end
+        end
+    end
+    return closest
+end
+
+local function getEnemyByName(name, bossOnly)
+    for _, v in ipairs(getEnemies()) do
+        if v.Name == name and (not bossOnly or v.Name:lower():find("boss")) then
+            return v
+        end
+    end
+    return nil
+end
+
+--// FIGHTER UTILITY //--
+
+local function getFighters()
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("FighterList")
+    if not gui then return {} end
+    local fighters = {}
+    for _, v in ipairs(gui:GetChildren()) do
+        if v:IsA("Frame") and v:FindFirstChild("FighterId") then
+            table.insert(fighters, v.FighterId.Value)
+        end
+    end
+    return fighters
+end
+
+--// FARM LOGIC //--
+
+local IsFarming = false
+task.spawn(function()
+    while true do
+        if Settings.AutoFarm and not IsFarming then
+            IsFarming = true
+            task.spawn(function()
+                local target
+                if Settings.FarmMode == "Closest" then
+                    target = getClosestEnemy(Settings.BossOnly)
+                elseif Settings.FarmMode == "Specific" then
+                    target = getEnemyByName(Settings.TargetEnemy, Settings.BossOnly)
+                end
+                if target and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
+                    local fighters = getFighters()
+                    if Settings.AllAtOnce then
+                        for _, id in ipairs(fighters) do
+                            ReplicatedStorage.RemoteEvents.AttackEnemy:FireServer(target, id)
+                        end
+                    else
+                        for _, id in ipairs(fighters) do
+                            ReplicatedStorage.RemoteEvents.AttackEnemy:FireServer(target, id)
+                            task.wait(Settings.AttackDelay)
+                        end
+                    end
+                end
+                task.wait(Settings.AttackDelay)
+                IsFarming = false
+            end)
+        end
+        task.wait(0.2)
     end
 end)
 
--- ESP UNIVERSAL
-local ESPActive = false
-local espBoxes = {}
-function RemoveESP()
-    for _, box in ipairs(espBoxes) do
-        if box then box:Destroy() end
+--// AUTO OPEN STAR LOGIC //--
+
+local IsOpeningStar = false
+task.spawn(function()
+    while true do
+        if Settings.AutoOpenStar and not IsOpeningStar then
+            IsOpeningStar = true
+            task.spawn(function()
+                for i = 1, Settings.StarsPerCycle or 1 do
+                    ReplicatedStorage.RemoteEvents.OpenEgg:FireServer(Settings.SelectedWorld, Settings.SelectedStar, Settings.UseLuck, Settings.UseShiny)
+                    task.wait(0.3)
+                end
+                if Settings.AutoSell then
+                    for rarity, enabled in pairs(Settings.AutoSell) do
+                        if enabled then
+                            ReplicatedStorage.RemoteEvents.SellRarity:FireServer(rarity)
+                        end
+                    end
+                end
+                IsOpeningStar = false
+            end)
+        end
+        task.wait(0.5)
     end
-    espBoxes = {}
-end
-function DrawESP()
-    RemoveESP()
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local adorn = Instance.new("BoxHandleAdornment")
-            adorn.Name = "ESPBox"
-            adorn.Adornee = plr.Character.HumanoidRootPart
-            adorn.AlwaysOnTop = true
-            adorn.ZIndex = 10
-            adorn.Size = Vector3.new(4, 7, 2)
-            adorn.Color3 = accentColor
-            adorn.Transparency = 0.7
-            adorn.Parent = plr.Character
-            table.insert(espBoxes, adorn)
+end)
+
+--// AUTO MAX OPEN //--
+
+local IsMaxOpening = false
+task.spawn(function()
+    while true do
+        if Settings.AutoMaxOpen and not IsMaxOpening then
+            IsMaxOpening = true
+            task.spawn(function()
+                local gui = LocalPlayer.PlayerGui:FindFirstChild("MaxOpenCooldown")
+                if gui and gui.Text == "Ready" then
+                    ReplicatedStorage.RemoteEvents.MaxOpen:FireServer(Settings.SelectedWorld, Settings.SelectedStar)
+                    if Settings.AutoSellAfterMax then
+                        for rarity, enabled in pairs(Settings.AutoSell) do
+                            if enabled then
+                                ReplicatedStorage.RemoteEvents.SellRarity:FireServer(rarity)
+                            end
+                        end
+                    end
+                    -- Notify on special units (simulate, adapt as needed)
+                    for _, v in ipairs(getFighters()) do
+                        local fighter = v
+                        -- check rarity/shiny (simulate)
+                        -- Replace by actual fighter data as needed
+                        if Settings.NotifySecret or Settings.NotifyDivine or Settings.NotifyShiny then
+                            notify("Special Fighter obtained!")
+                            if Settings.WebhookURL and Settings.WebhookURL ~= "" then
+                                sendWebhook(Settings.WebhookURL, {content = "Special Fighter obtained!"})
+                            end
+                        end
+                    end
+                end
+                IsMaxOpening = false
+            end)
+        end
+        task.wait(1)
+    end
+end)
+
+--// AUTO COLLECT DROPS //--
+
+local function collectDrops(folderName)
+    local dropFolders = {
+        Yen = "Drops",
+        Fruits = "FruitDrops",
+        Shards = "ShardDrops"
+    }
+    local folder = Workspace:FindFirstChild(dropFolders[folderName])
+    if folder then
+        for _, drop in ipairs(folder:GetChildren()) do
+            if drop:IsA("BasePart") then
+                drop.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
+            end
         end
     end
 end
-ESPBtn.MouseButton1Click:Connect(function()
-    ESPActive = not ESPActive
-    ESPBtn.Text = ESPActive and "ESP: ON [E]" or "ESP: OFF [E]"
-    ESPBtn.TextColor3 = ESPActive and highlightColor or accentColor
-    if ESPActive then DrawESP() else RemoveESP() end
-end)
-Players.PlayerAdded:Connect(function() if ESPActive then DrawESP() end end)
-Players.PlayerRemoving:Connect(function() if ESPActive then DrawESP() end end)
 
--- NOCLIP (atravessa paredes)
-local NoclipActive = false
-NoclipBtn.MouseButton1Click:Connect(function()
-    NoclipActive = not NoclipActive
-    NoclipBtn.Text = NoclipActive and "NoClip: ON" or "NoClip: OFF"
-    NoclipBtn.TextColor3 = NoclipActive and highlightColor or accentColor
+task.spawn(function()
+    while true do
+        for k, v in pairs(Settings.AutoCollect) do
+            if v then collectDrops(k) end
+        end
+        task.wait(0.3)
+    end
 end)
-RunService.Stepped:Connect(function()
-    if NoclipActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
+
+--// AUTO CLAIM REWARDS //--
+
+task.spawn(function()
+    while true do
+        if Settings.AutoClaimRewards then
+            ReplicatedStorage.RemoteEvents.ClaimLoginReward:FireServer()
+            ReplicatedStorage.RemoteEvents.ClaimQuestReward:FireServer()
+            ReplicatedStorage.RemoteEvents.ClaimChest:FireServer()
+        end
+        task.wait(8)
+    end
+end)
+
+--// ANTI AFK //--
+
+if Settings.AntiAFK then
+    local vu = game:GetService("VirtualUser")
+    LocalPlayer.Idled:Connect(function()
+        vu:Button2Down(Vector2.new(0,0),Workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        vu:Button2Up(Vector2.new(0,0),Workspace.CurrentCamera.CFrame)
+    end)
+end
+
+--// GUI CONFIGURATION //--
+
+FarmSection:NewToggle("Auto Farm", "Automatically farm enemies", function(v)
+    Settings.AutoFarm = v saveSettings()
+end):Set(Settings.AutoFarm)
+FarmSection:NewDropdown("Farm Mode", "Closest or Specific", {"Closest","Specific"}, function(opt)
+    Settings.FarmMode = opt saveSettings()
+end):Set(Settings.FarmMode)
+FarmSection:NewTextBox("Enemy Name", "For Specific mode", function(txt)
+    Settings.TargetEnemy = txt saveSettings()
+end):Set(Settings.TargetEnemy)
+FarmSection:NewToggle("Boss Only", "Farm only Boss enemies", function(v)
+    Settings.BossOnly = v saveSettings()
+end):Set(Settings.BossOnly)
+FarmSection:NewSlider("Attack Delay", "Delay between attacks", 0, 1, Settings.AttackDelay, function(val)
+    Settings.AttackDelay = val saveSettings()
+end)
+FarmSection:NewToggle("All Fighters At Once", "Attack all fighters simultaneously", function(v)
+    Settings.AllAtOnce = v saveSettings()
+end):Set(Settings.AllAtOnce)
+
+StarsSection:NewToggle("Auto Open Star", "Auto open eggs in world", function(v)
+    Settings.AutoOpenStar = v saveSettings()
+end):Set(Settings.AutoOpenStar)
+StarsSection:NewDropdown("World", "Choose World", WorldList, function(opt)
+    Settings.SelectedWorld = opt
+    Settings.SelectedStar = ""
+    saveSettings()
+end):Set(Settings.SelectedWorld)
+StarsSection:NewDropdown("Star", "Choose Star", updateStarsDropdown(Settings.SelectedWorld), function(opt)
+    Settings.SelectedStar = opt saveSettings()
+end):Set(Settings.SelectedStar)
+StarsSection:NewSlider("Stars per Cycle", "How many stars to open", 1, 10, Settings.StarsPerCycle, function(val)
+    Settings.StarsPerCycle = val saveSettings()
+end)
+StarsSection:NewToggle("Luck Boost", "Use Luck Boost", function(v)
+    Settings.UseLuck = v saveSettings()
+end):Set(Settings.UseLuck)
+StarsSection:NewToggle("Shiny Boost", "Use Shiny Boost", function(v)
+    Settings.UseShiny = v saveSettings()
+end):Set(Settings.UseShiny)
+StarsSection:NewToggle("Auto Sell Common", "Auto sell Common", function(v)
+    Settings.AutoSell.Common = v saveSettings()
+end):Set(Settings.AutoSell.Common)
+StarsSection:NewToggle("Auto Sell Rare", "Auto sell Rare", function(v)
+    Settings.AutoSell.Rare = v saveSettings()
+end):Set(Settings.AutoSell.Rare)
+StarsSection:NewToggle("Auto Sell Epic", "Auto sell Epic", function(v)
+    Settings.AutoSell.Epic = v saveSettings()
+end):Set(Settings.AutoSell.Epic)
+StarsSection:NewToggle("Auto Sell Legendary", "Auto sell Legendary", function(v)
+    Settings.AutoSell.Legendary = v saveSettings()
+end):Set(Settings.AutoSell.Legendary)
+StarsSection:NewToggle("Auto Sell Mythical", "Auto sell Mythical", function(v)
+    Settings.AutoSell.Mythical = v saveSettings()
+end):Set(Settings.AutoSell.Mythical)
+
+MaxOpenSection:NewToggle("Auto Max Open", "Auto Max Open eggs", function(v)
+    Settings.AutoMaxOpen = v saveSettings()
+end):Set(Settings.AutoMaxOpen)
+MaxOpenSection:NewToggle("Auto Sell After Max", "Auto sell after max open", function(v)
+    Settings.AutoSellAfterMax = v saveSettings()
+end):Set(Settings.AutoSellAfterMax)
+MaxOpenSection:NewToggle("Notify Secret", "Notify on secret fighter", function(v)
+    Settings.NotifySecret = v saveSettings()
+end):Set(Settings.NotifySecret)
+MaxOpenSection:NewToggle("Notify Divine", "Notify on divine fighter", function(v)
+    Settings.NotifyDivine = v saveSettings()
+end):Set(Settings.NotifyDivine)
+MaxOpenSection:NewToggle("Notify Shiny", "Notify on shiny fighter", function(v)
+    Settings.NotifyShiny = v saveSettings()
+end):Set(Settings.NotifyShiny)
+MaxOpenSection:NewTextBox("Webhook URL", "Discord webhook for logging", function(txt)
+    Settings.WebhookURL = txt saveSettings()
+end):Set(Settings.WebhookURL)
+
+MiscSection:NewToggle("Auto Collect Yen", "Auto collect Yen drops", function(v)
+    Settings.AutoCollect.Yen = v saveSettings()
+end):Set(Settings.AutoCollect.Yen)
+MiscSection:NewToggle("Auto Collect Fruits", "Auto collect Fruits", function(v)
+    Settings.AutoCollect.Fruits = v saveSettings()
+end):Set(Settings.AutoCollect.Fruits)
+MiscSection:NewToggle("Auto Collect Shards", "Auto collect Shards", function(v)
+    Settings.AutoCollect.Shards = v saveSettings()
+end):Set(Settings.AutoCollect.Shards)
+MiscSection:NewToggle("Auto Claim Rewards", "Auto claim daily rewards/quests", function(v)
+    Settings.AutoClaimRewards = v saveSettings()
+end):Set(Settings.AutoClaimRewards)
+
+ExtrasSection:NewButton("Save Settings", "Manually save your settings", function() saveSettings() notify("Settings saved!") end)
+ExtrasSection:NewToggle("Anti-AFK", "Prevent idle kick", function(v)
+    Settings.AntiAFK = v saveSettings()
+end):Set(Settings.AntiAFK)
+
+--// GUI KEYBIND (N) TOGGLE //--
+local UIS = game:GetService("UserInputService")
+local Visible = true
+UIS.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.N then
+        Visible = not Visible
+        for _,v in pairs(game.CoreGui:GetChildren()) do
+            if v.Name:find("Kavo") then
+                v.Enabled = Visible
             end
         end
     end
 end)
 
--- SPEED
-local SpeedActive = false
-local NormalWalkSpeed = 16
-local FastWalkSpeed = 60
-SpeedBtn.MouseButton1Click:Connect(function()
-    SpeedActive = not SpeedActive
-    SpeedBtn.Text = SpeedActive and "Speed: ON" or "Speed: OFF"
-    SpeedBtn.TextColor3 = SpeedActive and highlightColor or accentColor
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = SpeedActive and FastWalkSpeed or NormalWalkSpeed
-    end
-end)
-LocalPlayer.CharacterAdded:Connect(function(char)
-    char:WaitForChild("Humanoid").WalkSpeed = SpeedActive and FastWalkSpeed or NormalWalkSpeed
-end)
-
--- RESET CHARACTER
-ResetBtn.MouseButton1Click:Connect(function()
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health = 0
-    end
-end)
-
--- ANIMAÇÕES ELDER
-local appliedElder = false
-local humanoidDescendantAddedConn
-AnimBtn.MouseButton1Click:Connect(function()
-    appliedElder = not appliedElder
-    if appliedElder then
-        local function applyElderAnim(char)
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if not hum then return end
-            hum:LoadAnimation(Instance.new("Animation", hum) {AnimationId = ElderAnims.Idle}).Name = "Idle"
-            hum:LoadAnimation(Instance.new("Animation", hum) {AnimationId = ElderAnims.Walk}).Name = "Walk"
-            hum:LoadAnimation(Instance.new("Animation", hum) {AnimationId = ElderAnims.Run}).Name = "Run"
-            hum:LoadAnimation(Instance.new("Animation", hum) {AnimationId = ElderAnims.Fall}).Name = "Fall"
-            hum:LoadAnimation(Instance.new("Animation", hum) {AnimationId = ElderAnims.Jump}).Name = "Jump"
-            hum:LoadAnimation(Instance.new("Animation", hum) {AnimationId = ElderAnims.Swim}).Name = "Swim"
-            StarterGui:SetCore("SendNotification", {Title="Animações", Text="Animações Elder aplicadas!", Duration=2})
-        end
-        if LocalPlayer.Character then applyElderAnim(LocalPlayer.Character) end
-        LocalPlayer.CharacterAdded:Connect(applyElderAnim)
-    else
-        StarterGui:SetCore("SendNotification", {Title="Animações", Text="(Reinicie personagem para remover anims)", Duration=2})
-    end
-end)
-
--- PLAYER LIST
-local playerButtons = {}
-local SelectedPlayer = nil
-local function RefreshPlayerList()
-    for _, btn in ipairs(playerButtons) do btn:Destroy() end
-    playerButtons = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 28)
-            btn.BackgroundColor3 = bgColor
-            btn.Text = plr.Name
-            btn.Font = Enum.Font.Gotham
-            btn.TextColor3 = textColor
-            btn.TextSize = 16
-            btn.AutoButtonColor = false
-            btn.Parent = PlayerListBox
-            btn.MouseButton1Click:Connect(function()
-                SelectedPlayer = plr
-                for _, b in ipairs(playerButtons) do
-                    b.BackgroundColor3 = bgColor
-                    b.TextColor3 = textColor
-                end
-                btn.BackgroundColor3 = accentColor
-                btn.TextColor3 = bgColor
-            end)
-            table.insert(playerButtons, btn)
-        end
-    end
-    PlayerListBox.CanvasSize = UDim2.new(0, 0, 0, #playerButtons * 32)
-end
-Players.PlayerAdded:Connect(RefreshPlayerList)
-Players.PlayerRemoving:Connect(RefreshPlayerList)
-RefreshPlayerList()
-
--- TELEPORT & ESP PLAYER
-TeleportBtn.MouseButton1Click:Connect(function()
-    if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = SelectedPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-            StarterGui:SetCore("SendNotification", {Title="Teleport", Text="Teleportado para "..SelectedPlayer.Name, Duration=2})
-        end
-    end
-end)
-local singleESP = nil
-local function RemoveSingleESP()
-    if singleESP then singleESP:Destroy() singleESP = nil end
-end
-ESPPlayerBtn.MouseButton1Click:Connect(function()
-    RemoveSingleESP()
-    if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local adorn = Instance.new("BoxHandleAdornment")
-        adorn.Name = "ESPBox"
-        adorn.Adornee = SelectedPlayer.Character.HumanoidRootPart
-        adorn.AlwaysOnTop = true
-        adorn.ZIndex = 20
-        adorn.Size = Vector3.new(4, 7, 2)
-        adorn.Color3 = highlightColor
-        adorn.Transparency = 0.3
-        adorn.Parent = SelectedPlayer.Character
-        singleESP = adorn
-        StarterGui:SetCore("SendNotification", {Title="ESP", Text="ESP aplicado em "..SelectedPlayer.Name, Duration=2})
-    end
-end)
-Players.PlayerRemoving:Connect(RemoveSingleESP)
-
--- ATALHOS DE TECLADO
-UserInputService.InputBegan:Connect(function(input, processed)
-    if not processed then
-        if input.KeyCode == Enum.KeyCode.B then
-            MenuFrame.Visible = not MenuFrame.Visible
-        elseif input.KeyCode == Enum.KeyCode.E then
-            ESPBtn:Activate()
-        elseif input.KeyCode == Enum.KeyCode.T then
-            TeleportBtn:Activate()
-        end
-    end
-end)
-
--- VOICECHAT AUTOREJOIN
-local lastSuspended = 0
-VoiceChatService.StateChanged:Connect(function(state)
-    if state == Enum.VoiceChatConnectionState.Suspended and tick() - lastSuspended > 2 then
-        lastSuspended = tick()
-        pcall(function() VoiceChatService:JoinVoice() end)
-    end
-end)
-
--- MENU MÓVEL (drag)
-local dragging, dragInput, dragStart, startPos
-TopBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = MenuFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-TopBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        MenuFrame.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
--- Garante que o menu fique sempre na tela ao mover
-MenuFrame:GetPropertyChangedSignal("Position"):Connect(function()
-    local abs = MenuFrame.AbsolutePosition
-    local size = MenuFrame.AbsoluteSize
-    local screenSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
-    local minX = 0
-    local minY = 0
-    local maxX = screenSize.X - size.X
-    local maxY = screenSize.Y - size.Y
-    if abs.X < minX then
-        MenuFrame.Position = UDim2.new(0, minX, MenuFrame.Position.Y.Scale, MenuFrame.Position.Y.Offset)
-    elseif abs.X > maxX then
-        MenuFrame.Position = UDim2.new(0, maxX, MenuFrame.Position.Y.Scale, MenuFrame.Position.Y.Offset)
-    end
-    if abs.Y < minY then
-        MenuFrame.Position = UDim2.new(MenuFrame.Position.X.Scale, MenuFrame.Position.X.Offset, 0, minY)
-    elseif abs.Y > maxY then
-        MenuFrame.Position = UDim2.new(MenuFrame.Position.X.Scale, MenuFrame.Position.X.Offset, 0, maxY)
-    end
-end)
-
--- Sugestão extra: botão para minimizar o menu (ícone no topo)
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 40, 1, 0)
-MinBtn.Position = UDim2.new(1, -96, 0, 0)
-MinBtn.BackgroundTransparency = 1
-MinBtn.Text = "━"
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
-MinBtn.TextSize = 26
-MinBtn.Parent = TopBar
-
-MinBtn.MouseButton1Click:Connect(function()
-    MenuFrame.Visible = false
-end)
-
--- Dica extra: notificação ao abrir/fechar com B
-UserInputService.InputBegan:Connect(function(input, processed)
-    if not processed and input.KeyCode == Enum.KeyCode.B then
-        MenuFrame.Visible = not MenuFrame.Visible
-        if MenuFrame.Visible then
-            StarterGui:SetCore("SendNotification", {Title = "Menu", Text = "Menu aberto (pressione B para fechar)", Duration = 2})
-        else
-            StarterGui:SetCore("SendNotification", {Title = "Menu", Text = "Menu fechado (pressione B para reabrir)", Duration = 2})
-        end
-    end
-end)
+--// END OF SCRIPT //--
+notify("AFS Script Loaded. Press N to toggle GUI.")
